@@ -31,7 +31,11 @@ void connect(Vertex& a, Vertex& b, int weight) {
 
 void display(std::list<Vertex *>& graph) {
 	for (auto v : graph) {
-		cout << v->name << ": f - " << v->f << " g - " << v->g << " h - " << v->h << endl;
+		cout << v->name << " - Neighbours:" << endl;
+		for (auto n : v->neighbours) {
+			cout << n.first->name << " ";
+		}
+		cout << endl << endl;
 	}
 }
 
@@ -48,6 +52,9 @@ void phase1(Vertex& start, Vertex& goal, int edge) {
 			}
 		}
 	}
+
+
+
 	return;
 }
 
@@ -191,20 +198,32 @@ bool isVertex(coord dest, std::list<Vertex*> graph) {
 	return false;
 }
 
-void generate2(std::list<Vertex*> *graph, Vertex* parent) {
-	for (int i = 0; i < 3; i++) {
-		coord tempCoord = { parent->coords.x + (rand() & 3), parent->coords.y + (rand() & 3) };
-		graph->push_back(new Vertex(char(tempCoord.x + 65) + to_string(tempCoord.y), tempCoord));
-		connect(*parent, *graph->back(), 2);
-	}
-	
-	for (auto node : parent->neighbours) {
-		generate2(graph, node.first);
+void generate2(std::list<Vertex*> *graph, Vertex* parent, int level) {
+	int localLevel = level;
+	localLevel++;
+	if (localLevel < 3) {
+		int randNo = 2 + (rand() % static_cast<int>(4 - 2 + 1));
+		for (int i = 0; i < randNo; i++) {
+			coord tempCoord = { parent->coords.x + (rand() & 3), parent->coords.y + (rand() & 3) };
+			if (!isVertex(tempCoord, *graph)) {
+				graph->push_back(new Vertex(char(tempCoord.x + 65) + to_string(tempCoord.y), tempCoord));
+				connect(*parent, *graph->back(), (rand() % 10) + 1);
+			}
+			else {
+				Vertex* tempNode = findVertex(tempCoord, *graph);
+				connect(*parent, *tempNode, (rand() % 10) + 1);
+			}
+		}
+		for (auto node : parent->neighbours) {
+			if (node.first->coords.x >= parent->coords.x) {
+				generate2(graph, node.first, localLevel);
+			}
+		}
 	}
 	return;
 }
 
-std::list<Vertex *> generateGraph(int range, int spread, bool blocks, int connections) {
+/*std::list<Vertex *> generateGraph(int range, int spread, bool blocks, int connections) {
 
 	string tempName;
 	std::list<Vertex*> graph;
@@ -242,7 +261,7 @@ std::list<Vertex *> generateGraph(int range, int spread, bool blocks, int connec
 	}
 
 	return graph;
-}
+}*/
 
 void test() {
 	Vertex va("A", { 0,1 }), vb("B", { 1,0 }), vc("C", { 2,1 }), vd("D", { 1, 2 }), ve("E", { 3,0 }), vf("F", { 3,2 }), vg("G", { 2,3 }), vh("H", { 4,3 }), vi("I", { 4,1 }), vx("X", { 2,8 }), vy("Y", { 5,8 }), vz("Z", { 7,10 });
@@ -265,7 +284,7 @@ void test() {
 	std::list<Vertex *> graph;
 	graph.push_back(new Vertex("A5", { 0,5 }));
 	
-	generate2(&graph, graph.front());
+	generate2(&graph, graph.front(), 0);
 	
 	va.distance = 0;
 	//phase1(va, vh, 0);
