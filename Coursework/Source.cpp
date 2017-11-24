@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <list>
 #include <string>
 #include <set>
@@ -14,6 +15,7 @@ struct coord {
 struct Vertex {
 	std::string name;
 	bool blocked;
+	bool hasChildren;
 	int distance; //-1 if not filled in yet
 	int f, g, h;
 	coord coords;
@@ -21,7 +23,7 @@ struct Vertex {
 	Vertex* parent;
 
 	Vertex(std::string name_, coord coord_) :
-		name(name_), coords(coord_), blocked(false), distance(-1) {}
+		name(name_), coords(coord_), blocked(false), hasChildren(false), distance(-1) {}
 };
 
 void connect(Vertex& a, Vertex& b, int weight) {
@@ -29,15 +31,6 @@ void connect(Vertex& a, Vertex& b, int weight) {
 	b.neighbours.push_back({ &a, weight });
 }
 
-void display(std::list<Vertex *>& graph) {
-	for (auto v : graph) {
-		cout << v->name << " - Neighbours:" << endl;
-		for (auto n : v->neighbours) {
-			cout << n.first->name << " ";
-		}
-		cout << endl << endl;
-	}
-}
 
 void phase1(Vertex& start, Vertex& goal, int edge) {
 
@@ -187,6 +180,7 @@ Vertex* findVertex(coord dest, std::list<Vertex*> graph) {
 			return node;
 		}
 	}
+	return nullptr;
 }
 
 bool isVertex(coord dest, std::list<Vertex*> graph) {
@@ -198,32 +192,113 @@ bool isVertex(coord dest, std::list<Vertex*> graph) {
 	return false;
 }
 
-void generate2(std::list<Vertex*> *graph, Vertex* parent, int level) {
-	int localLevel = level;
-	localLevel++;
-	if (localLevel < 3) {
-		int randNo = 2 + (rand() % static_cast<int>(4 - 2 + 1));
-		for (int i = 0; i < randNo; i++) {
-			coord tempCoord = { parent->coords.x + (rand() & 3), parent->coords.y + (rand() & 3) };
-			if (!isVertex(tempCoord, *graph)) {
-				graph->push_back(new Vertex(char(tempCoord.x + 65) + to_string(tempCoord.y), tempCoord));
-				connect(*parent, *graph->back(), (rand() % 10) + 1);
+void display(std::list<Vertex *>& graph) {
+	/*for (auto v : graph) {
+		cout << v->name << " -> ";
+		for (auto n : v->neighbours) {
+			cout << n.first->name << " ";
+		}
+		cout << endl << endl;
+	}*/
+	for (int y = 0; y <= graph.size(); y++) {
+		for (int x = 0; x <= graph.size(); x++) {
+			Vertex* tempNode = findVertex({ x,y }, graph);
+			if (tempNode != nullptr) {
+				switch (tempNode->name.size())
+				{
+				case 1:
+					cout << tempNode->name << "__|";
+					break;
+				case 2:
+					cout << tempNode->name << "_|";
+					break;
+				case 3:
+					cout << tempNode->name << "|";
+					break;
+				default:
+					cout << tempNode->name;
+					break;
+				}
 			}
 			else {
-				Vertex* tempNode = findVertex(tempCoord, *graph);
-				connect(*parent, *tempNode, (rand() % 10) + 1);
+				cout << "___|";
 			}
 		}
+		cout << endl;
+	}
+}
+
+std::list<Vertex*> generateGraph(int size) {
+	std::list<Vertex*> graph;
+	for (int i = 0; i < size; i++) {
+		int randomX = (rand() % size) + 1, randomY = (rand() % size) + 1;
+		coord tempCrd = { randomX, randomY };
+		graph.push_back(new Vertex{ to_string(i), tempCrd });
+	}
+
+	int range = size / 5;
+	for (auto node : graph) {
+		coord tempCrd = node->coords;
+		for (int y = tempCrd.y - range; y < tempCrd.y + range; y++) {
+			for (int x = tempCrd.x - range; x < tempCrd.x + range; x++) {
+				Vertex* search = findVertex({ x,y }, graph);
+				if (search != nullptr && (tempCrd.x != x && tempCrd.y != y)) {
+					connect(*node, *search, 2);
+				}
+			}
+		}
+	}
+	return graph;
+}
+
+void storeCSV(std::list<Vertex *>& graph) {
+	ofstream csv;
+	csv.open("data.csv");
+	for (int y = 0; y < graph.size(); y++) {
+		for (int x = 0; x < graph.size(); x++) {
+			Vertex* tempNode = findVertex({ x,y }, graph);
+			if (tempNode != nullptr) {
+				csv << tempNode->name << ",";
+			}
+			else {
+				csv << " ,";
+			}
+		}
+			csv << "\n";
+	}
+}
+
+/*
+void generateGraph(std::list<Vertex*> *graph, Vertex* parent, int level) {
+	int localLevel = level;
+	localLevel++;
+	for (int i = 0; i < 4; i++) {
+		coord tempCoord = { parent->coords.x + (rand() & 3), parent->coords.y + (rand() & 3) };
+		if (!isVertex(tempCoord, *graph)) {
+			graph->push_back(new Vertex(char(tempCoord.x + 65) + to_string(tempCoord.y), tempCoord));
+			connect(*parent, *graph->back(), (rand() % 10) + 1);
+		}
+		else {
+			Vertex* tempNode = findVertex(tempCoord, *graph);
+			connect(*parent, *tempNode, (rand() % 10) + 1);
+		}
+	}
+
+	parent->hasChildren = true;
+	if (localLevel > 5) {
+		return;
+	}
+	else {
 		for (auto node : parent->neighbours) {
-			if (node.first->coords.x >= parent->coords.x) {
-				generate2(graph, node.first, localLevel);
+			if (!node.first->hasChildren) {
+				generateGraph(graph, node.first, 5);
 			}
 		}
 	}
 	return;
-}
 
-/*std::list<Vertex *> generateGraph(int range, int spread, bool blocks, int connections) {
+}
+std::list<Vertex *> generateGraph(int range, int spread, bool blocks, int connections) {
 
 	string tempName;
 	std::list<Vertex*> graph;
@@ -281,10 +356,9 @@ void test() {
 	connect(vy, vz, 6);
 	//vc.blocked = true;
 
-	std::list<Vertex *> graph;
-	graph.push_back(new Vertex("A5", { 0,5 }));
+	std::list<Vertex *> graph = generateGraph(50);
 	
-	generate2(&graph, graph.front(), 0);
+	//generateGraph(&graph, graph.front(), 0);
 	
 	va.distance = 0;
 	//phase1(va, vh, 0);
@@ -293,10 +367,13 @@ void test() {
 	/*phase2(&vh, path);
 	path.reverse();
 	cout << "Distances:" << endl;*/
+	
+	Vertex* start = *graph.begin();
+	Vertex* last = *graph.begin();
 
-	path = aStar(&va, &vh);
+	//path = aStar(graph.front(), graph.back());
 
-	display(graph);
+	storeCSV(graph);
 
 	cout << endl << "Path taken:" << endl;
 
