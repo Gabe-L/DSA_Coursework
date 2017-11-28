@@ -1,0 +1,3 @@
+Start cell: 4, 6
+  End cell: 1, 5
+Time taken: 0 milliseconds.
