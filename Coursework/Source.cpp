@@ -18,7 +18,7 @@ struct coord {
 };
 
 int randomInt(int min, int max) {
-	return (rand() % max) + min;
+	return min + (rand() % (max - min + 1));
 }
 
 struct Vertex {
@@ -105,13 +105,16 @@ std::list<Vertex *> medGrid() {
 	return returnGrid;
 }
 
-std::list<Vertex *> largeGrid(Vertex** first, Vertex** last) {
+std::list<Vertex *> largeGrid(Vertex** first, Vertex** last, int size) {
 
-	Vertex* grid[10][10];
+	std::list<Vertex*> returnGrid;
 
-	std::list<Vertex *> returnGrid;
+	vector<vector<Vertex*>> grid;
 
-	int size = 10;
+	grid.resize(size);
+	for (auto &line : grid) {
+		line.resize(size);
+	}
 
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
@@ -133,53 +136,72 @@ std::list<Vertex *> largeGrid(Vertex** first, Vertex** last) {
 		}
 	}
 
-	int randX = randomInt(0, 9), randY = randomInt(0, 9);
+	int randX = randomInt(0, size / 10), randY = randomInt(0, size / 10);
 	*first = grid[randX][randY];
 
-	randX = randomInt(0, 9);  randY = randomInt(0, 9);
+	randX = randomInt(size - (size / 10), size - 1);  randY = randomInt(size - (size / 10), size - 1);
 	*last = grid[randX][randY];
 
 	return returnGrid;
 }
 
-void phase1(Vertex& start, Vertex& goal, int edge, bool found = false) {
+std::list<Vertex*> leeAlgorithm(Vertex* start, Vertex* goal) {
+	std::set<Vertex*> open, close;
+	start->distance = 0;
 
-	for (auto v : start.neighbours) {
-		if (!v.first->blocked) {
-			if (v.first->distance == -1 || v.first->distance > start.distance + v.second) {
-				if (found) {
-					break;
+	Vertex* current;
+	int new_dist;
+
+	open.insert(start);
+	
+	//Phase 1
+	while (!open.empty()) {
+		current = *open.begin();
+
+		if (current == goal) {
+			break;
+		}
+
+		open.erase(current);
+		close.insert(current);
+
+		for (auto v : current->neighbours) {
+			if (close.count(v.first) > 0) {
+				if (v.first->distance > current->distance + v.second) {
+					v.first->distance = current->distance + v.second;
 				}
-				v.first->distance = start.distance + v.second;
-				if (v.first == &goal) {
-					found = true;
-					return;
-				}
-				phase1(*v.first, goal, v.second);
+				continue;
 			}
+
+			new_dist = current->distance + v.second;
+
+			if (open.count(v.first) < 1) {
+				open.insert(v.first);
+			}
+			else if (new_dist >= v.first->distance) {
+				continue;
+			}
+			v.first->distance = new_dist;
+			v.first->parent = current;
 		}
 	}
-	return;
-}
 
-void phase2(Vertex* self, std::list<Vertex *>& path) {
-	path.push_back(self);
-	pair<Vertex*, int> betterPath;
-	betterPath.second = 200;
-
-	for (auto v : self->neighbours) {
-		if (v.first->distance == 0) {
-			path.push_back(v.first);
-			return;
-		}
-		if (!v.first->blocked) {
-			if (v.first->distance < self->distance && v.second < betterPath.second) {
-				betterPath = v;
+	std::list<Vertex*> path;
+	current = goal;
+	Vertex* betterPath = goal;
+	//Phase 2
+	while (current->distance > 0) {
+		path.push_front(current);
+		for (auto node : current->neighbours) {
+			if (node.first->distance < betterPath->distance && node.first->distance > -1) {
+				betterPath = node.first;
 			}
 		}
+		current = betterPath;
 	}
-	phase2(betterPath.first, path);
-	return;
+	path.push_front(start);
+
+	return path;
 }
 
 int heuristic(Vertex* node, Vertex* goal) {
@@ -361,31 +383,35 @@ void storeGrid(std::list<Vertex *>& graph, std::string fileName, char dataType) 
 	ofstream csv;
 	csv.open(fileName);
 	int loopSize = sqrt(graph.size());
-	for (int y = 0; y < loopSize; y++) {
-		for (int x = 0; x < loopSize; x++) {
-			Vertex* tempNode = findVertex({ y,x }, graph);
-			if (tempNode != nullptr) {
-				switch (dataType) {
-				case 'D':
-					csv << tempNode->distance << ",";
-					break;
-				case 'F':
-					csv << tempNode->f << ",";
-					break;
-				case 'G':
-					csv << tempNode->g << ",";
-					break;
-				default:
-					csv << "error,";
-				}
+	int track = 0;
 
-			}
-			else {
-				csv << " ,";
+	for (auto node : graph) {
+		track++;
+		if (node != nullptr) {
+			switch (dataType) {
+			case 'D':
+				csv << node->distance << ",";
+				break;
+			case 'F':
+				csv << node->f << ",";
+				break;
+			case 'G':
+				csv << node->g << ",";
+				break;
+			default:
+				csv << "error,";
 			}
 		}
+		else {
+			csv << " ,";
+		}
+		if (track == loopSize) {
 			csv << "\n";
+			track = 0;
+		}
+
 	}
+
 	csv.close();
 }
 
@@ -445,20 +471,22 @@ int main() {
 	the_clock::time_point startTime, endTime;
 	float leeTime, aTime;
 
-	std::list<Vertex*> small = largeGrid(&first, &last);
+	std::list<Vertex*> small = largeGrid(&first, &last, 100);
 	
+	cout << "Grid generation finished..." << endl;
 
 	//std::list<Vertex*> path = aStar(small.front(), small.back)
 	//std::list<Vertex*> med = medGrid();
 	//std::list<Vertex*> large = largeGrid();
 
 	startTime = the_clock::now();
-	//phase1(*first, *last, 1);
-	//phase2(small.back(), lPath);
+	lPath = leeAlgorithm(first, last);
 	endTime = the_clock::now();
 
 	auto totalTime = duration_cast<milliseconds>(endTime - startTime).count();
 	leeTime = totalTime;
+
+	cout << "Lee algorithm finished..." << endl;
 
 	startTime = the_clock::now();
 	aPath = aStar(first, last);
@@ -467,9 +495,12 @@ int main() {
 	totalTime = duration_cast<milliseconds>(endTime - startTime).count();
 	aTime = totalTime;
 
+	cout << "A* algorithm finished..." << endl;
+
 	storeGrid(small, "LeeGrid - Small.csv", 'D');
 	storeGrid(small, "A_Grid - Small.csv", 'F');
 
+	cout << "Grid storing finished..." << endl;
 
 	ofstream leeFile;
 	leeFile.open("Lee_Path.csv");
@@ -502,7 +533,7 @@ int main() {
 	aInfo << "Time taken: " << aTime << " milliseconds.";
 
 	aInfo.close();
-
+	cout << "Extra info storage finished..." << endl;
 	cout << "Finished exectuing...";
 
 	//wait for user input to end program
